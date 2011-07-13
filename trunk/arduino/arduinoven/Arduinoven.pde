@@ -13,8 +13,8 @@
 #define DEBUG
  
 // Temperature sensor selection.  Only select _one_ of these.
-//#define TEMP_AD595         // AD595 thermocouple amplifier
-#define TEMP_FAKE          // Fake temperature sensor for testing
+#define TEMP_AD595         // AD595 thermocouple amplifier
+//#define TEMP_FAKE          // Fake temperature sensor for testing
 
 // Attached LCD.  Again, only select one of these (or none!)
 //#define TWI_LCD            // DFRobot TWI LCD (16x2)
@@ -32,9 +32,10 @@
 
 #define AREF_VOLTAGE 5.0    // Voltage measured on Aref
 
-#define DEFAULT_PID_P  1.0
-#define DEFAULT_PID_I  0.0
-#define DEFAULT_PID_D  0.0
+#define EEPROM_VERSION 10  // Values not equal to this get reset
+#define DEFAULT_PID_P  20.0
+#define DEFAULT_PID_I  1.0
+#define DEFAULT_PID_D  2.0
  
 /* User configurable options end */
 // ***************************************************************
@@ -81,18 +82,17 @@ void nvrWriteInt(int value, int address);
 #endif
 
 // State variables
-unsigned long currentTimeTicks;  // milliseconds since startup
-boolean relayState;              // state of heater relay
-const unsigned int tcnt2 = 131;  // Timer2 reload value for 1ms
-
-#ifdef TEMP_FAKE
-float fakeTemperature;
-unsigned long fakeTemplastStatusChange;
-#endif
+unsigned long currentTimeTicks;     // milliseconds since startup
+boolean relayState;                 // state of heater relay
+float lastTemperature;              // last recorded temperature
+unsigned long lastTemperatureTime;  // time that last temperature was recorded
+float proportional;                 // P term (before multiplication by gain!)
+float integral;                     // I term (before multiplication by gain!)
+float derivative;                   // D term (before multiplication by gain!)
+const unsigned int tcnt2 = 131;     // Timer2 reload value for 1ms
 
 // EEPROM settings structure
 // If you add stuff here, go and change initializeEEPROM immediately!
-#define EEPROM_VERSION 5  // Values not equal to this get reset
 typedef struct {
   int eeprom_version;
   float p;  // Proportional gain
@@ -111,37 +111,77 @@ void setup() {
   pinMode(RELAY_LED, OUTPUT);
   pinMode(PIEZO_PIN, OUTPUT);
 
-  #ifdef TEMP_FAKE
-    // Initialize the fake temperature sensor (if installed)  
-    fakeTemperature = 12.0;
-    fakeTemplastStatusChange = 0;
-  #endif
-  
   // Check the EEPROM status and initialize if required
   initializeEEPROM();
-  
+
+  // Initialize machine state
+  #ifdef TEMP_FAKE
+    // Initialize the fake temperature sensor (if installed)  
+    lastTemperature = 12.0;
+  #else 
+    // Initialize the temperature by reading it (and set the relay off)
+    setRelay(LOW);
+    lastTemperature = readTempSensor();
+  #endif
+  lastTemperatureTime = 1;
+  proportional = 0;
+  integral = 0;
+  derivative = 0;
+ 
   // Configure the timer to run every 1ms
   configureTimer();
+  
+  // Delay a short time to let a few ticks accumulate
+  delay(100);
 }
 // END FUNCTION setup()
 
 // BEGIN FUNCTION loop()
 void loop() {
-  unsigned long time = currentTimeTicks;
-  float temp = readTempSensor();
-  if (temp < 100.0) {
-      relayState = HIGH;
+  float currentTemp = readTempSensor();
+  float currentTime = currentTimeTicks;
+  float targetTemp = 50.0;
+  
+  float t = currentTime - lastTemperatureTime;
+  float elast = lastTemperature - targetTemp;
+  float ecurr = currentTemp - targetTemp;
+  float error;
+
+  // P term is P*ecurr (ie, magnitude of current error
+  proportional = currentTemp - targetTemp;
+  
+  // I term is summed up from previous runs
+  // calculated as the area between the actual temp and the target temp
+  // Divide by 1000 to get more sensible PIDs
+  integral += (t*elast - (t*(elast - ecurr)) / 2.0) / 1000.0;
+  
+  // D term is summed up from previous runs
+  // calculated as the slope of the temperature line
+  // Multiply by 1000 to get more sensible PIDs
+  derivative += ((ecurr - elast) / t) * 1000.0;
+  
+  // Calculate PID
+  error = readFloat(p)*proportional + readFloat(i)*integral + readFloat(d)*derivative;
+  
+  Serial.print("Temp error: ");
+  Serial.println(ecurr);
+  
+  if (error < 0) {
+      setRelay(HIGH);
   } else {
-      relayState = LOW;
+      setRelay(LOW);
   };
+
+  lastTemperature = currentTemp;
+  lastTemperatureTime = currentTime;
 
   // write out the state of the controller
   #ifdef DEBUG
     writeState();
   #endif
   
-  // make this loop take 500ms
-  delay(time+500-currentTimeTicks);
+  // make this loop take the marked amount of time
+  delay(lastTemperatureTime+500-currentTimeTicks);
 }
 // END FUNCTION loop()
 
@@ -186,6 +226,17 @@ void writeState() {
   Serial.print(currentTimeTicks);
   Serial.print(" relay = ");
   Serial.print(relayState?1:0);
+  Serial.println("");
+  
+  Serial.print("p = ");
+  Serial.print(proportional);
+  Serial.print(" i = ");
+  Serial.print(integral);
+  Serial.print(" d = ");
+  Serial.print(derivative);
+  Serial.print(" err = ");
+  Serial.print(readFloat(p)*proportional + readFloat(i)*integral + readFloat(d)*derivative);
+  Serial.println("");
   Serial.println("");
 }
 #endif
@@ -248,23 +299,27 @@ float readTempSensor() {
 // 2.  Temp decreases at 2 deg/sec when off
 // 3.  Temp starts at 15 degrees, caps at 300
 float readTempSensor() {
-  float time = (currentTimeTicks - fakeTemplastStatusChange)/1000.0;
-  if ((fakeTemperature <= 15.0) && !relayState) {
-      // temp too low and relay is off
-      fakeTemperature = 15.0;
-  } else if ((fakeTemperature >= 300) && relayState) {
-      // temp too high and relay is on
-      fakeTemperature = 300.0;
-  } else if (relayState) {
+  float time = (currentTimeTicks - lastTemperatureTime)/1000.0;
+  float temp = lastTemperature;
+  
+   if (relayState) {
       // relay is on, increase temperature
-      fakeTemperature += 5.0 * time;
+      temp += 5.0 * time;
   } else {
       // relay is off, decrease temperature
-      fakeTemperature -= 2.0 * time;
+      temp -= 2.0 * time;
   }
       
-  fakeTemplastStatusChange = currentTimeTicks;
-  return fakeTemperature;
+  if ((temp <= 15.0) && !relayState) {
+      // temp too low and relay is off
+      return 15.0;
+  } else if ((temp >= 300) && relayState) {
+      // temp too high and relay is on
+      return 300.0;
+  } else {
+    return temp;
+  }
+  
 }
 #endif
 // END FUNCTION readTempSensor()
@@ -276,10 +331,6 @@ void setRelay(boolean flag)
   #ifndef TEMP_FAKE
     // relay does not actually activate in fake temp mode
     digitalWrite(RELAY_PIN, relayState);
-  #else
-    // otherwise we just "read" the sensor to reset its state
-    // this allows the fake sensor to change properly
-    readTempSensor();
   #endif
   
   digitalWrite(RELAY_LED, relayState);
