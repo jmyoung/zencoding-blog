@@ -1,0 +1,250 @@
+Index: AeroQuad.h
+===================================================================
+--- AeroQuad.h	(revision 710)
++++ AeroQuad.h	(working copy)
+@@ -182,6 +182,11 @@
+ int throttle = 1000;
+ int autoDescent = 0;
+ 
++// battery adjust
++#ifdef BattAdjust
++  float batterylevel = 11.1;
++#endif
++
+ // Altitude Hold
+ #define ALTPANIC 2 // special state that allows immediate turn off of Altitude hold if large throttle changesa are made at the TX
+ #define ALTBUMP 90 // amount of stick movement to cause an altutude bump (up or down)
+@@ -437,4 +442,5 @@
+         free_memory = ((int)&free_memory) - ((int)__brkval);
+     return free_memory;
+ }
++ 
+Index: AeroQuad.pde
+===================================================================
+--- AeroQuad.pde	(revision 710)
++++ AeroQuad.pde	(working copy)
+@@ -32,12 +32,12 @@
+ 
+ //#define AeroQuad_v1         // Arduino 2009 with AeroQuad Shield v1.7 and below
+ //#define AeroQuad_v1_IDG     // Arduino 2009 with AeroQuad Shield v1.7 and below using IDG yaw gyro
+-//#define AeroQuad_v18        // Arduino 2009 with AeroQuad Shield v1.8
++#define AeroQuad_v18        // Arduino 2009 with AeroQuad Shield v1.8
+ //#define AeroQuad_Mini       // Arduino Pro Mini with AeroQuad Mini Shield V1.0
+ //#define AeroQuad_Wii        // Arduino 2009 with Wii Sensors and AeroQuad Shield v1.x
+ //#define AeroQuad_Paris_v3   // Define along with either AeroQuad_Wii to include specific changes for MultiWiiCopter Paris v3.0 board					
+ //#define AeroQuadMega_v1     // Arduino Mega with AeroQuad Shield v1.7 and below
+-#define AeroQuadMega_v2     // Arduino Mega with AeroQuad Shield v2.x
++//#define AeroQuadMega_v2     // Arduino Mega with AeroQuad Shield v2.x
+ //#define AeroQuadMega_Wii    // Arduino Mega with Wii Sensors and AeroQuad Shield v2.x
+ //#define ArduCopter          // ArduPilot Mega (APM) with APM Sensor Board
+ //#define AeroQuadMega_CHR6DM // Clean Arduino Mega with CHR6DM as IMU/heading ref.
+@@ -58,9 +58,10 @@
+ // *******************************************************************************************************************************
+ // You must define one of the next 3 attitude stabilization modes or the software will not build
+ // *******************************************************************************************************************************
+-#define HeadingMagHold // Enables HMC5843 Magnetometer, gets automatically selected if CHR6DM is defined
++//#define HeadingMagHold // Enables HMC5843 Magnetometer, gets automatically selected if CHR6DM is defined
+ #define AltitudeHold // Enables BMP085 Barometer (experimental, use at your own risk)
+ #define BattMonitor //define your personal specs in BatteryMonitor.h! Full documentation with schematic there
++#define BattAdjust // automatically adjust throttle based on battery power output (baseline decided on arm)
+ //#define RateModeOnly // Use this if you only have a gyro sensor, this will disable any attitude modes.
+ // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ // You must define *only* one of the following 2 flightAngle calculations
+@@ -68,7 +69,7 @@
+ // flightAngle recommendations: use FlightAngleARG if you do not have a magnetometer, use DCM if you have a magnetometer installed
+ // +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ //#define FlightAngleMARG // Experimental!  Fly at your own risk! Use this if you have a magnetometer installed and enabled HeadingMagHold above
+-//#define FlightAngleARG // Use this if you do not have a magnetometer installed
++#define FlightAngleARG // Use this if you do not have a magnetometer installed
+ //#define WirelessTelemetry  // Enables Wireless telemetry on Serial3  // Wireless telemetry enable
+ //#define BinaryWrite // Enables fast binary transfer of flight data to Configurator
+ //#define BinaryWritePID // Enables fast binary transfer of attitude PID data
+@@ -88,6 +89,9 @@
+ // On screen display implementation using MAX7456 chip. See OSD.h for more info and configuration.
+ //#define MAX7456_OSD
+ 
++#define BattAdjustMaxAdjust 2.0 // maximum amount to adjust throttle by when countering battery voltage loss
++#define BattAdjustFactor 1.0 // factor to multiply the throttle adjust by (careful with this, small adjustments will have a BIG effect)
++
+ /****************************************************************************
+  ********************* End of User Definition Section ***********************
+  ****************************************************************************/
+@@ -102,6 +106,10 @@
+ #undef MAX7456_OSD
+ #endif
+ 
++#if !defined(BattMonitor) && defined(BattAdjust)
++#undef BattAdjust
++#endif
++
+ #include <EEPROM.h>
+ #include <Wire.h>
+ #include "AeroQuad.h"
+@@ -714,11 +722,12 @@
+         readPilotCommands(); // defined in FlightCommand.pde
+       }
+ 
+-      if (sensorLoop == ON) {
+-        #ifdef AltitudeHold
+-          altitude.measure(); // defined in altitude.h
+-        #endif
+-      }
++      // Modified by Darkwolf.  50Hz loop for BMP085 is too fast
++      //if (sensorLoop == ON) {
++      //  #ifdef AltitudeHold
++      //    altitude.measure(); // defined in altitude.h
++      //  #endif
++      //}
+ 
+       #if defined(CameraControl)
+         camera.setPitch(degrees(flightAngle->getData(PITCH)));
+@@ -731,6 +740,13 @@
+         digitalWrite(10, LOW);
+       #endif
+     }
++    
++    // Added by Darkwolf.  Special 33.3Hz altitude measurement loop
++    #ifdef AltitudeHold
++    if ((frameCounter % 3 == 0) && (sensorLoop == ON)) {
++      altitude.measure();
++    }
++    #endif
+ 
+     // ================================================================
+     // 25hz task loop
+@@ -789,4 +805,5 @@
+       frameCounter = 0;
+ }
+ 
++ 
+Index: BatteryMonitor.h
+===================================================================
+--- BatteryMonitor.h	(revision 710)
++++ BatteryMonitor.h	(working copy)
+@@ -127,8 +127,8 @@
+ public:
+   BatteryMonitor_APM() : BatteryMonitor(){}
+   void initialize(void) {
+-    float R1   = 10050; //the SMD 10k resistor measured with DMM
+-    float R2   =  3260; //3k3 user mounted resistor measured with DMM
++    float R1   = 14560; //the SMD 10k resistor measured with DMM
++    float R2   =  7530; //3k3 user mounted resistor measured with DMM
+     float Aref = 3.27F; //AREF 3V3 used (solder jumper) and measured with DMM
+     batteryScaleFactor = ((Aref / 1024.0) * ((R1 + R2) / R2));
+ 
+@@ -192,18 +192,19 @@
+   BatteryMonitor_AeroQuad() : BatteryMonitor(){}
+ 
+   void initialize(void) {
+-    float R1   = 15000;
+-    float R2   =  7500;
+-    float Aref =     5.0;
++    float R1   = 14560;
++    float R2   =  7530;
++    float Aref =     4.95;
+     batteryScaleFactor = ((Aref / 1024.0) * ((R1 + R2) / R2));
+ #ifdef AeroQuad_Mini
+     diode = 0.53; // measured with DMM
+ #else    
+-    diode = 0.9; // measured with DMM
++    diode = 0.74; // measured with DMM
+ #endif    
+     analogReference(DEFAULT);
+     pinMode(BUZZERPIN, OUTPUT); // connect a 12V buzzer to buzzer pin
+     digitalWrite(BUZZERPIN, LOW);
++    digitalWrite(LED3PIN, LOW); // *****
+     previousBatteryTime = millis();
+     state = LOW;
+     firstAlarm = OFF;
+@@ -213,6 +214,7 @@
+     long currentBatteryTime = millis() - previousBatteryTime;
+     if (level == OK) {
+       digitalWrite(BUZZERPIN, LOW);
++      digitalWrite(LED3PIN, LOW); // *****
+       autoDescent = 0;
+     }
+     if (level == WARNING) {
+@@ -253,4 +255,5 @@
+     return (analogRead(channel) * batteryScaleFactor) + diode;
+   }
+ };
++ 
+Index: FlightControl.pde
+===================================================================
+--- FlightControl.pde	(revision 710)
++++ FlightControl.pde	(working copy)
+@@ -280,10 +280,33 @@
+   processHeading();
+ 
+   // ********************** Altitude Adjust **********************************
+-  processAltitudeHold();
++  // processAltitudeHold();   // commented by Darkwolf
+ 
++  // Added by Darkwolf.  Configure battery level baseline for automatic battery adjust
++  #ifdef BattAdjust
++  // We only adjust the baseline battery level if the throttle isn't set high enough to take off
++  // That way on the point of takeoff the battery level baseline will be calibrated accordingly.
++  if (receiver.getData(THROTTLE) < MINCHECK) {
++    batterylevel = batteryMonitor.batteryVoltage;
++  }
++  #endif
++
+   // ********************** Calculate Motor Commands *************************
+   if (armed && safetyCheck) {
++    // Added by Darkwolf.  Adjust throttle outputs based on voltage of battery
++    // batterylevel = level of the battery when motors were armed (ie, the baseline throttle)
++    // BattAdjustFactor = multiplier to the division of the voltages to adjust the throttle by.  Should really be 1.0 or less
++    // BattAdjustMaxAdjust = maximum amount to adjust the throttle by.  2.0 = double the set throttle.
++    #ifdef BattAdjust
++      if (batteryMonitor.batteryVoltage < batterylevel) {
++        throttle *= constrain(
++          ((float)batteryMonitor.batteryVoltage) / ((float)constrain(batteryMonitor.batteryVoltage,1,batterylevel)) * BattAdjustFactor,
++          0,
++          BattAdjustMaxAdjust
++        );
++      }
++    #endif
++        
+     // Front = Front/Right, Back = Left/Rear, Left = Front/Left, Right = Right/Rear 
+     motors.setMotorCommand(FRONT, throttle - motors.getMotorAxisCommand(PITCH) + motors.getMotorAxisCommand(ROLL) - motors.getMotorAxisCommand(YAW));
+     motors.setMotorCommand(RIGHT, throttle - motors.getMotorAxisCommand(PITCH) - motors.getMotorAxisCommand(ROLL) + motors.getMotorAxisCommand(YAW));
+@@ -334,10 +357,33 @@
+   processHeading();
+ 
+   // ********************** Altitude Adjust **********************************
+-  processAltitudeHold();
++  // processAltitudeHold();  // commented by Darkwolf
+ 
++  // Added by Darkwolf.  Configure battery level baseline for automatic battery adjust
++  #ifdef BattAdjust
++  // We only adjust the baseline battery level if the throttle isn't set high enough to take off
++  // That way on the point of takeoff the battery level baseline will be calibrated accordingly.
++  if (receiver.getData(THROTTLE) < MINCHECK) {
++    batterylevel = batteryMonitor.batteryVoltage;
++  }
++  #endif
++
+   // ********************** Calculate Motor Commands *************************
+   if (armed && safetyCheck) {
++    // Added by Darkwolf.  Adjust throttle outputs based on voltage of battery
++    // batterylevel = level of the battery when motors were armed (ie, the baseline throttle)
++    // BattAdjustFactor = multiplier to the division of the voltages to adjust the throttle by.  Should really be 1.0 or less
++    // BattAdjustMaxAdjust = maximum amount to adjust the throttle by.  2.0 = double the set throttle.
++    #ifdef BattAdjust
++      if (batteryMonitor.batteryVoltage < batterylevel) {
++        throttle *= constrain(
++          ((float)batteryMonitor.batteryVoltage) / ((float)constrain(batteryMonitor.batteryVoltage,1,batterylevel)) * BattAdjustFactor,
++          0,
++          BattAdjustMaxAdjust
++        );
++      }
++    #endif
++        
+     motors.setMotorCommand(FRONT, throttle - motors.getMotorAxisCommand(PITCH) - motors.getMotorAxisCommand(YAW));
+     motors.setMotorCommand(REAR, throttle + motors.getMotorAxisCommand(PITCH) - motors.getMotorAxisCommand(YAW));
+     motors.setMotorCommand(RIGHT, throttle - motors.getMotorAxisCommand(ROLL) + motors.getMotorAxisCommand(YAW));
+@@ -375,4 +421,5 @@
+   }
+ }
+ #endif
++ 
