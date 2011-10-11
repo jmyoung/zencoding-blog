@@ -1,4 +1,8 @@
 #!/usr/bin/perl
+
+eval 'exec /usr/bin/perl  -S $0 ${1+"$@"}'
+    if 0; # not running under some shell
+
 #
 # mrtg-envir.pl
 #
@@ -6,18 +10,6 @@
 #
 # Usage: mrtg-envir channel sensor1 sensor2
 #
-# This program is free software; you can redistribute it and/or
-# modify it under the terms of the GNU General Public License
-# as published by the Free Software Foundation; either version 2
-# of the License, or (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-
-eval 'exec /usr/bin/perl  -S $0 ${1+"$@"}'
-    if 0; # not running under some shell
 
 use WebSphere::MQTT::Client;
 use Data::Dumper;
@@ -76,7 +68,7 @@ $mqtt->terminate();
 # - - subtract next argument
 # temp - temperature reading
 # offset(number) - offset value
-# floor(sensor, number) - return 0 for sensor if it's below number
+# floor(sensor,number) - return 0 for sensor if it's below number
 # Whitespace is NOT permitted!
 sub CalculateReading($$)
 {
@@ -113,7 +105,7 @@ sub CalculateReading($$)
 	} elsif ($token =~ /^offset\((\d+)\)$/) {
 		# Offset.
 		$result = $1;
-	} elsif ($token =~ /^floor\((\d+),(\d+)\)$/) {
+	} elsif ($token =~ /^floor\((\d+\.\d+),(\d+)\)$/) {
 		# Floor.
 		my $reading = GetReading($message,$1);
 		if ($reading < $2) {
@@ -128,6 +120,8 @@ sub CalculateReading($$)
 		} else {
 			$result = 0;
 		}
+	} elsif (!defined ($text)) {
+		die "Parse error on token '$token'";
 	} else {
 		die "Parse error on '$text'";
 	}

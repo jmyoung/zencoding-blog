@@ -1,22 +1,13 @@
 #!/usr/bin/perl
+
+eval 'exec /usr/bin/perl  -S $0 ${1+"$@"}'
+    if 0; # not running under some shell
+
 #
 # Processes and cooks data from an ENVI-R attached to a serial port
 # Find WebSphere doco at;
 # http://cpansearch.perl.org/src/NJH/WebSphere-MQTT-Client-0.03/lib/WebSphere/MQTT/Client.pm
 #
-#
-# This program is free software; you can redistribute it and/or
-# modify it under the terms of the GNU General Public License
-# as published by the Free Software Foundation; either version 2
-# of the License, or (at your option) any later version.
-# 
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-# GNU General Public License for more details.
-
-eval 'exec /usr/bin/perl  -S $0 ${1+"$@"}'
-    if 0; # not running under some shell
 
 use WebSphere::MQTT::Client;
 use Device::SerialPort;
@@ -37,14 +28,12 @@ my @cache;
 my $cachesize = 300;
 
 # Outer loop.  Keep connecting to the broker.
-# This is intended to keep the program running even if the broker or TTYUSB
-# goes down.
 while (1) {
 	# Connect to broker
 	my $mqtt = new WebSphere::MQTT::Client(
 		Hostname => 'localhost',
 		Port => 1883,
-		Debug => 1,
+		Debug => 0,
 	);
 
 	my $res = $mqtt->connect();
@@ -59,7 +48,7 @@ while (1) {
 		my $rawdata = fetch_data();
 		my %packet = parse_data($rawdata);
 
-		if (! %packet ) {
+		if (! %packet || ! defined $packet{timestamp}) {
 			print "Invalid data packet fetched, retrying ...\n";
 			sleep 5;
 			next;
@@ -85,6 +74,7 @@ while (1) {
 				my %summary = %{ clone(\%packet) };
 				$summary{timestamp} = time(); 
 				$summary{sensors} = { };
+				$summary{counts} = { };
 				$summary{tmpr} = 0;
 
 				# Sum up all the data
@@ -92,9 +82,11 @@ while (1) {
 					foreach my $k (keys %{ $x->{sensors} }) {
 						if (! exists $summary{sensors}->{$k}) {
 							$summary{sensors}->{$k} = 0;
+							$summary{counts}->{$k} = 0;
 						};
 
 						$summary{sensors}->{$k} += $x->{sensors}->{$k};
+						$summary{counts}->{$k}++;
 					}
 
 					$summary{tmpr} += $x->{tmpr};
@@ -102,7 +94,7 @@ while (1) {
 
 				# Average it
 				foreach my $k (keys %{ $summary{sensors} }) {
-					$summary{sensors}->{$k} = int (($summary{sensors}->{$k} / $cachelength) + 0.5);
+					$summary{sensors}->{$k} = int (($summary{sensors}->{$k} / $summary{counts}->{$k}) + 0.5);
 				}
 				$summary{tmpr} = sprintf("%.1f", $summary{tmpr} / $cachelength);
 
@@ -249,10 +241,13 @@ sub parse_data($) {
 
 	# History messages are disregarded entirely
 	if ($msg =~ /<hist>(.+)<\/hist>/i) {
+		print "History packet received.  Skipping.\n";
 		return undef;
 	} elsif ($msg =~ /<msg>(.+)<\/msg>/i) {
 		# Otherwise the message is parsed
 		$msg = $1;
+
+		print "Valid packet received.  Parsing.\n";
 
 		# Extract some key information from the string
 		if ($msg =~ /<src>(.+)<\/src>/i) {
