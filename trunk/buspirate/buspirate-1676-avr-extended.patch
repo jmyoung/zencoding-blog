@@ -31,8 +31,16 @@ Index: SPI.c
 -										spiWriteByte(j & 0xFF);
 -										UART1TX(spiWriteByte(0x00));  // fetch byte that was read
 -										length--;
-+								// keep in mind that start address is _words_+								for (addr=saddr; length > 0; addr++) {
-+									// if we are on a memory page boundary, change memory pages+									if ((addr==saddr) || ((addr & 0xFFFF) == 0)) {+										spiWriteByte(0x4D);+										spiWriteByte(0x00);+										spiWriteByte((addr >> 16) & 0xFF);+										spiWriteByte(0x00);+									} 
++								// keep in mind that start address is _words_
++								for (addr=saddr; length > 0; addr++) {
++									// if we are on a memory page boundary, change memory pages
++									if ((addr==saddr) || ((addr & 0xFFFF) == 0)) {
++										spiWriteByte(0x4D);
++										spiWriteByte(0x00);
++										spiWriteByte((addr >> 16) & 0xFF);
++										spiWriteByte(0x00);
++									}
+ 
 -										if (length == 0) break;
 +									// fetch low byte from this memory word
 +									spiWriteByte(0x20);
