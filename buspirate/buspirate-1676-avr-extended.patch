@@ -1,0 +1,63 @@
+Index: SPI.c
+===================================================================
+--- SPI.c	(revision 1816)
++++ SPI.c	(working copy)
+@@ -611,7 +611,7 @@
+     static unsigned char inByte, rawCommand, i;
+     unsigned int j, fw, fr;
+ #ifdef AVR_EXTENDED_COMMANDS
+-	unsigned long saddr, length;
++	unsigned long saddr, addr, length;
+ #endif
+ 
+     //useful default values
+@@ -738,31 +738,35 @@
+ 									length = (length << 8) | inByte;
+ 								}
+ 
+-								// FIXME - Can't handle pages past the first 64kb
+-								if (saddr > 0xFFFF || length > 0xFFFF || (saddr+length) > 0xFFFF) {
+-									UART1TX(0);
+-								} else {
+-									// just assume it'll work...
+-									UART1TX(0x01); // send 1/OK
++								// just assume it'll work...
++								UART1TX(0x01); // send 1/OK
+ 
+-									for (j=saddr; length > 0; j++) {
+-										// fetch low byte from this memory word
+-										spiWriteByte(0x20);
+-										spiWriteByte(j >> 8);
+-										spiWriteByte(j & 0xFF);
+-										UART1TX(spiWriteByte(0x00));  // fetch byte that was read
+-										length--;
++								// keep in mind that start address is _words_+								for (addr=saddr; length > 0; addr++) {
++									// if we are on a memory page boundary, change memory pages+									if ((addr==saddr) || ((addr & 0xFFFF) == 0)) {+										spiWriteByte(0x4D);+										spiWriteByte(0x00);+										spiWriteByte((addr >> 16) & 0xFF);+										spiWriteByte(0x00);+									} 
+-										if (length == 0) break;
++									// fetch low byte from this memory word
++									spiWriteByte(0x20);
++									spiWriteByte(addr >> 8);
++									spiWriteByte(addr & 0xFF);
++									UART1TX(spiWriteByte(0x00));  // fetch byte that was read
++									length--;
++
++									if (length == 0) break;
+ 			
+-										// fetch high byte from this memory word
+-										spiWriteByte(0x28);
+-										spiWriteByte(j >> 8);
+-										spiWriteByte(j & 0xFF);
+-										UART1TX(spiWriteByte(0x00));  // fetch byte that was read
+-										length--;
+-									}
+-								}																
++									// fetch high byte from this memory word
++									spiWriteByte(0x28);
++									spiWriteByte(addr >> 8);
++									spiWriteByte(addr & 0xFF);
++									UART1TX(spiWriteByte(0x00));  // fetch byte that was read
++									length--;
++								}
+ 								break;					
+ 							default:
+ 								UART1TX(0);
