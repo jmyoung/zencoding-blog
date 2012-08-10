@@ -160,10 +160,13 @@ function initialize(self, menus, mainMenu, dialogsData)
 	--UI
 	do
 		local screenWidth, screenHeight = Gui.GetWindowSize()		
+		local xOffset = 2560
+		screenWidth = 2560
+		screenHeight = 1440
 		
 		local containerSkin = {}
 		local height = 400
-		local window = Window.new(0, 0, screenWidth, height, "CommandDialogsPanel.Window")
+		local window = Window.new(xOffset, 0, xOffset + screenWidth, height, "CommandDialogsPanel.Window")
     
 		window:setHasCursor(false)
 		window:setSkin(containerSkin)
