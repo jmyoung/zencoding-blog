@@ -252,8 +252,8 @@ local function getScreenParams()
   end  
   
   if fullscreen then 
-      width = screen_w
-      height = screen_h
+      width = 2560
+      height = 1440
   end
   
   return width, height, fullscreen
