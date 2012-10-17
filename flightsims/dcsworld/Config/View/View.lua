@@ -66,7 +66,7 @@ function checkSnapviewTable(iPlane,iKey)
 			{
 			   hAngle    =  0, 
 			   vAngle    = -10,
-			   viewAngle =  60,
+			   viewAngle =  135,
 			   x_trans   =  0,
 			   y_trans   =  0,
 			   z_trans   =  0,
@@ -125,12 +125,12 @@ CameraViewAngleLimits = {}
 CameraViewAngleLimits[Su_27]   = {20.0, 120.0} 
 CameraViewAngleLimits[Su_33]   = {20.0, 120.0}
 CameraViewAngleLimits[Su_25]   = {20.0, 120.0}
-CameraViewAngleLimits[Su_25T]  = {20.0, 120.0}
+CameraViewAngleLimits[Su_25T]  = {55.76, 158.21}  -- Default 20.0, 120.0
 CameraViewAngleLimits[MiG_29]  = {20.0, 120.0}
 CameraViewAngleLimits[MIG_29K] = {20.0, 120.0}
 CameraViewAngleLimits[F_15]    = {20.0, 140.0}
-CameraViewAngleLimits[A_10A]   = {20.0, 140.0}
-CameraViewAngleLimits[KA_50]   = {20.0, 120.0}
+CameraViewAngleLimits[A_10A]   = {55.76, 135.0}	-- Default 20.0,140.0
+CameraViewAngleLimits[KA_50]   = {55.76, 135.0}  -- Default 20.0,140.0
 CameraViewAngleLimits[A_10C]   = CameraViewAngleLimits[A_10A]
 CameraViewAngleLimits[P_51D]   = {20.0, 120.0}
 
@@ -203,7 +203,7 @@ ExternalMouseSpeedNormal = 5.0
 ExternalMouseSpeedFast = 20.0
 ExternalViewAngleMin = 3.0
 ExternalViewAngleMax = 170.0
-ExternalViewAngleDefault = 60.0
+ExternalViewAngleDefault = 120.0
 ExternalKeyboardZoomAcceleration = 30.0
 ExternalKeyboardZoomAccelerateTimeMax = 1.0
 ExplosionExpoTime = 4.0
