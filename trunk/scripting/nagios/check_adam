@@ -1,0 +1,119 @@
+#!/usr/bin/perl -w
+#
+# Nagios check to consult the Adam Internet usage API and generate perfdata
+# from that and also alert if quota gets too close to filling
+#
+
+use LWP;
+use XML::XPath;
+use Getopt::Std;
+use strict;
+use warnings;
+
+sub usage();
+
+if ($#ARGV le 0) {
+	usage();
+}
+
+our ($opt_c, $opt_u, $opt_w);
+getopts('u:w:c:');
+
+if (!$opt_w or $opt_w == 0 or !$opt_c or $opt_c == 0 or !$opt_u) {
+	print "Invalid input.  Check arguments and try again.\n";
+	usage();
+}
+
+my $browser = LWP::UserAgent->new;
+my $response = $browser->get('https://' . $opt_u . '@members.adam.com.au/api/');
+
+if ($response->is_success) {
+	my $xp = XML::XPath->new(xml => $response->content);
+
+	# Collect all the various bits of info out of the XML
+	my $quota = $xp->find('//Account[@type="ADSL"]/Usage/Bucket[@desc="Download"]/Quota')->string_value;
+	my $usage = $xp->find('//Account[@type="ADSL"]/Usage/Bucket[@desc="Download"]/Usage')->string_value;
+	my $quotastartdate = $xp->find('//Account[@type="ADSL"]/QuotaStartDate')->string_value;
+	my $syncup = $xp->find('//Account[@type="ADSL"]/ADSL/SyncUp')->string_value;
+	my $syncdown = $xp->find('//Account[@type="ADSL"]/ADSL/SyncDown')->string_value;
+	my $snrup = $xp->find('//Account[@type="ADSL"]/ADSL/SNRUp')->string_value;
+	my $snrdown = $xp->find('//Account[@type="ADSL"]/ADSL/SNRDown')->string_value;
+	my $attnup = $xp->find('//Account[@type="ADSL"]/ADSL/AttenuationUp')->string_value;
+	my $attndown = $xp->find('//Account[@type="ADSL"]/ADSL/AttenuationDown')->string_value;
+	my $ipv4addr = $xp->find('//Account[@type="ADSL"]/IPAddresses/IPv4Address')->string_value;
+
+	if ($quota eq "" || $usage eq "") {
+		print "CRITICAL: Unable to parse XML feed.";
+		exit 2;
+	}
+
+	# Count up usage from all previous days (to calc today's usage)
+	my $subtotal = 0;
+	my $days = 1;
+	foreach my $daycount ($xp->find('//Account[@type="ADSL"]/DailySummary/Day/Bucket[@desc="Download"]')->get_nodelist) {
+		if ($daycount->string_value ne "") {
+			$subtotal += $daycount->string_value
+		}
+		$days++;
+	}
+	my $today = $usage - $subtotal;
+
+	# Assemble perfdata
+	my $perfdata = "";
+	$perfdata .= "'Quota'=" . $quota . "B;;;; ";
+	$perfdata .= "'Usage'=" . $usage . "B;" . ($quota * ($opt_w / 100.0)) . ";" . ($quota * ($opt_c / 100.0)) . ";0;" . $quota . " ";
+	$perfdata .= "'Today'=" . $today . "B;;;; ";
+	$perfdata .= "'DaysUsed'=" . $days . ";;;; ";
+	$perfdata .= "'SNRUp'=" . $snrup . ";;;; ";
+	$perfdata .= "'SNRDown'=" . $snrdown . ";;;; ";
+	$perfdata .= "'SyncUp'=" . $syncup . ";;;; ";
+	$perfdata .= "'SyncDown'=" . $syncdown . ";;;; ";
+	$perfdata .= "'AttenuationUp'=" . $attnup . ";;;; ";
+	$perfdata .= "'AttenuationDown'=" . $attndown . ";;;; ";
+
+	# Assemble status message
+	my $message = "";
+	$message .= int($usage / 1024.0 / 1024.0 / 1024.0 + 0.5) . " of ";
+	$message .= int($quota / 1024.0 / 1024.0 / 1024.0 + 0.5) . " GiB";
+	$message .= " (" . int($usage / $quota * 100.0 + 0.5) . "%). ";
+	$message .= (int($today / 1024.0 / 1024.0 / 1024.0 * 10.0 + 0.5) / 10.0) . " GiB today. Day $days.";
+
+	# Compare this to the crit and warning thresholds
+	my $status = "UNKNOWN";
+	my $returncode = 3;
+	if ($usage >= ($quota * ($opt_c / 100.0))) {
+		$status = "CRITICAL";
+		$returncode = 2;
+	} elsif ($usage >= ($quota * ($opt_w / 100.0))) {
+		$status = "WARNING";
+		$returncode = 1;
+	} else {
+		$status = "OK";
+		$returncode = 0;
+	}
+
+	# Output results
+	print "$status: $message|$perfdata";
+	exit $returncode;
+} else {
+	print "CRITICAL: Feed fetch error (" . $response->status_line . ")";
+	exit 2;
+}
+
+sub usage() {
+	print "check_adam v1.0 - Nagios Plugin
+
+usage:
+ check_adam -u <credentials> -w warnlevel -c critlevel
+
+options:
+ -u user:token	Credentials to use to fetch API page
+ -w PERCENT	Percentage level of quota use to warn at
+ -c PERCENT	Percentage level of quota use to crit at
+
+Copyright (C) 2012 James Young <jyoung\@zencoffee.org>
+All rights reserved.  Comes with absolutely no warranty,
+either implied or explicit.  Use at your own risk.
+";
+	exit 3;
+}
