@@ -78,7 +78,7 @@ Index: buspirate.c
  				break;
  			}
  			/* Not yet 'SPI>' prompt */
-@@ -770,6 +798,63 @@
+@@ -770,6 +798,62 @@
  		return buspirate_cmd_ascii(pgm, cmd, res);
  }
  
@@ -95,7 +95,7 @@ Index: buspirate.c
 +	unsigned char buf[275];
 +	unsigned int addr = 0;
 +
-+	if (verbose) fprintf(stderr, "BusPirate: buspirate_paged_load(..,%s,%d,%d)\n",m->desc,m->page_size,address,n_bytes);
++	if (verbose > 1) fprintf(stderr, "BusPirate: buspirate_paged_load(..,%s,%d,%d)\n",m->desc,m->page_size,address,n_bytes);
 +
 +	// This should never happen, but still...
 +	if (pgm->flag & BP_FLAG_NOPAGEDREAD) {
@@ -133,7 +133,6 @@ Index: buspirate.c
 +	}
 +
 +	for (addr = 0; addr < n_bytes; addr++) {	
-+		report_progress (addr, n_bytes, NULL);
 +		buspirate_recv_bin(pgm, &m->buf[addr+address], 1);
 +	}
 +
@@ -142,7 +141,7 @@ Index: buspirate.c
  /* Paged write function which utilizes the Bus Pirate's "Write then Read" binary SPI instruction */
  static int buspirate_paged_write(struct programmer_t *pgm,
  		AVRPART *p,
-@@ -988,6 +1073,7 @@
+@@ -988,6 +1072,7 @@
  	pgm->write_byte     = avr_write_byte_default;
  
  	pgm->paged_write    = buspirate_paged_write;
