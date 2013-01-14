@@ -87,15 +87,15 @@ Index: buspirate.c
 +		PROGRAMMER *pgm,
 +		AVRPART *p,
 +		AVRMEM *m,
-+		int page_size,
-+		int address,
-+		int n_bytes)
++		unsigned int page_size,
++		unsigned int address,
++		unsigned int n_bytes)
 +{
 +	unsigned char commandbuf[10];
 +	unsigned char buf[275];
 +	unsigned int addr = 0;
 +
-+	if (verbose > 1) fprintf(stderr, "BusPirate: buspirate_paged_load(..,%s,%d,%d)\n",m->desc,m->page_size,address,n_bytes);
++	if (verbose > 1) fprintf(stderr, "BusPirate: buspirate_paged_load(..,%s,%d,%d,%d)\n",m->desc,m->page_size,address,n_bytes);
 +
 +	// This should never happen, but still...
 +	if (pgm->flag & BP_FLAG_NOPAGEDREAD) {
