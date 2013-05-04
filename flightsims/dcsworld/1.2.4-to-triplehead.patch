@@ -1,0 +1,69 @@
+Index: Config/View/View.lua
+===================================================================
+--- Config/View/View.lua	(revision 11)
++++ Config/View/View.lua	(working copy)
+@@ -10,7 +10,7 @@
+ CockpitKeyboardAccelerationFast = 80.0
+ CockpitKeyboardZoomAcceleration = 300.0
+ DisableSnapViewsSaving = false
+-UseDefaultSnapViews = true
++UseDefaultSnapViews = false
+ CockpitPanStepHor = 45.0
+ CockpitPanStepVert = 30.0
+ CockpitNyMove = true
+@@ -37,7 +37,7 @@
+ ExternalMouseSpeedFast = 20.0
+ ExternalViewAngleMin = 3.0
+ ExternalViewAngleMax = 170.0
+-ExternalViewAngleDefault = 60.0
++ExternalViewAngleDefault = 120.0	-- Default 60
+ ExternalKeyboardZoomAcceleration = 30.0
+ ExternalKeyboardZoomAccelerateTimeMax = 1.0
+ ExplosionExpoTime = 4.0
+@@ -125,4 +125,4 @@
+ TrackIR_gain_x    = -0.6
+ TrackIR_gain_y    =  0.3
+ TrackIR_gain_z    = -0.25
+-TrackIR_gain_roll = -90
+\ No newline at end of file
++TrackIR_gain_roll = -90
+Index: MissionEditor/MissionEditor.lua
+===================================================================
+--- MissionEditor/MissionEditor.lua	(revision 11)
++++ MissionEditor/MissionEditor.lua	(working copy)
+@@ -183,8 +183,8 @@
+   end  
+   
+   if fullscreen then 
+-      width = screen_w
+-      height = screen_h
++      width = 2560
++      height = 1440
+   end
+   
+   return width, height, fullscreen
+Index: Scripts/UI/RadioCommandDialogPanel/CommandDialogsPanel.lua
+===================================================================
+--- Scripts/UI/RadioCommandDialogPanel/CommandDialogsPanel.lua	(revision 10)
++++ Scripts/UI/RadioCommandDialogPanel/CommandDialogsPanel.lua	(working copy)
+@@ -157,9 +157,12 @@
+ 	--UI
+ 	do
+ 		local screenWidth, screenHeight = Gui.GetWindowSize()		
++		local xOffset = 2560
++		screenWidth = 2560
++		screenHeight = 1440
+ 		local height = 400
+ 		local window = DialogLoader.spawnDialogFromFile('Scripts/UI/RadioCommandDialogPanel/CommandDialogsPanel.dlg')
+-        window:setBounds(0, 0, screenWidth, height)
++        window:setBounds(xOffset, 0, xOffset + screenWidth, height)
+ 		window:setVisible(true)
+ 		self.window = window
+ 		
+@@ -549,4 +552,4 @@
+ 
+ function switchToDialog(self, dialog)
+ 	switchToDialog_(self, self.commonCommandMenuIt)
+-end
+\ No newline at end of file
++end
