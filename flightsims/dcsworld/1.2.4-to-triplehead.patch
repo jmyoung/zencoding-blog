@@ -1,6 +1,19 @@
+Index: Config/View/Server.lua
+===================================================================
+--- Config/View/Server.lua	(revision 12)
++++ Config/View/Server.lua	(working copy)
+@@ -81,7 +81,7 @@
+ 	Cockpit = {
+ 	[1] = {-- player slot 1
+ 		CockpitLocalPoint      = {3.188000,0.390000,0.000000},
+-		CameraViewAngleLimits  = {20.000000,120.000000},
++		CameraViewAngleLimits  = {55.76,158.21},	-- Default 20,120
+ 		CameraAngleRestriction = {false,60.000000,0.400000},
+ 		CameraAngleLimits      = {140.000000,-65.000000,90.000000},
+ 		EyePoint               = {0.090000,0.000000,0.000000},
 Index: Config/View/View.lua
 ===================================================================
---- Config/View/View.lua	(revision 11)
+--- Config/View/View.lua	(revision 12)
 +++ Config/View/View.lua	(working copy)
 @@ -10,7 +10,7 @@
  CockpitKeyboardAccelerationFast = 80.0
