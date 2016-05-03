@@ -5,13 +5,17 @@
 --
 -- NO WARRANTIES EXPRESS OR IMPLIED, USE AT YOUR OWN RISK
 
+-- Configure stuff here
 dht_gpio = 4							-- GPIO pin that the sensor is attached to
 mqtt_hostname = "mqtt.zencoffee.org"	-- Hostname for the MQTT server
-mqtt_ip = nil							-- IP address for the MQTT server
-mqtt_topic = "homeiot/raw"				-- MQTT topic to publish messages to
+mqtt_topic = "homeiot"					-- MQTT topic prefix to publish messages to
 mqtt_clientname = "esp8226-1"			-- MQTT clientname for this host
-mqtt_client = nil						-- The MQTT client object we're manip
 check_interval = 60						-- Number of seconds between checks
+
+-- Don't mess with this
+mqtt_ip = nil							-- IP address for the MQTT server
+mqtt_client = nil						-- The MQTT client object we're manipulating
+mqtt_data = nil							-- The sensor data we're outputting
 
 -- Generate the sensor status as a table
 function get_sensor_table(gpio)
@@ -19,45 +23,91 @@ function get_sensor_table(gpio)
 	status,temp,humi = dht.read(gpio)
 	if( status == dht.OK ) then
 		output = {}
-		output["temp"] = temp
-		output["relhumi"] = humi
+		output["temperature"] = temp
+		output["relhumidity"] = humi
 		return output
 	else
 		error()
 	end
 end
 
+-- Outputs a mqtt message json for the next sensor
+-- Once we run out of data, we send a status message
+function output_sensor_mqtt()
+	-- Is there any data left?
+	if next(mqtt_data) == nil then
+		output_json_status(1,"online")
+		
+		-- We sent everything.  Rearm watchdog.
+		tmr.softwd(check_interval*3)
+		return
+	end
+
+	-- Shift off the next value from the sensor list
+	sensor,value = next(mqtt_data)
+	mqtt_data[sensor] = nil
+
+	-- Assemble the JSON packet
+	topic = mqtt_topic .. "/sensor/" .. sensor .. "/" .. mqtt_clientname
+	output = {}
+	output["value"] = value
+	output["clientid"] = mqtt_clientname
+	ok, json = pcall(cjson.encode, output)
+		
+	if ok then
+		-- Push the JSON out to MQTT
+		print("sending mqtt " .. sensor .. " json")
+		mqtt_client:publish(topic,json,0,1,
+			function(client)
+				print("mqtt " .. sensor .. " json sent")
+				
+				-- And now send the next sensor
+				output_sensor_mqtt()
+			end
+		)
+	else
+		print(sensor .. " json encoding failed")
+	end
+end
+
+-- Outputs a status message about the device
+function output_json_status(validity,statustext)
+	topic = mqtt_topic .. "/status/" .. mqtt_clientname
+	output = {}
+	output["valid"] = validity
+	output["status"] = statustext
+	output["clientid"] = mqtt_clientname
+	ok, json = pcall(cjson.encode, output)
+
+	if ok then
+		-- Deliver MQTT message about the status of the device
+		print("sending mqtt status json")
+		mqtt_client:publish(topic,json,0,1,
+			function(client)
+				print("mqtt status sent")
+			end,
+			function(client)
+				print("mqtt status send failed")
+			end
+		)
+	else
+		print("status json encoding failed")
+	end
+end
+		
+
 -- Callback triggered when timer expires, for fetching status and publishing it
 function callback_timer()
-	print("timer callbacked")
-	
 	-- Retrieve the sensor status
-	ok, output = pcall(get_sensor_table, dht_gpio)
+	print("fetching sensor data")
+	ok, data = pcall(get_sensor_table, dht_gpio)
 	if ok then
-		-- Add some stuff to the table, then generate JSON from that
-		output["type"] = "reading"
-		output["status"] = "ok"
-		output["clientid"] = mqtt_clientname
-		ok, json = pcall(cjson.encode, output)
-		if ok then
-			-- Push the JSON out to MQTT, re-arm the watchdog if the send worked
-			print("sending mqtt ok json")
-			mqtt_client:publish(mqtt_topic,json,0,0, 	
-				function(client) 
-					print("mqtt ok json sent") 
-					tmr.softwd(check_interval*3)
-				end
-			)
-		else
-			print("json ok encoding failed")
-		end
+		-- Start pushing messages for the sensors we've detected
+		mqtt_data = data
+		output_sensor_mqtt()
 	else
-		-- Stub error output, not using json library (don't need it)
-		json = '{"type":"reading","status":"error","clientid":"' .. mqtt_clientname .. '"}'
-		
 		-- Push the JSON out to MQTT
-		print("sending mqtt error json")
-		mqtt_client:publish(mqtt_topic,json,0,0, function(client) print("mqtt error json sent") end)
+		output_json_status(0,"error")
 	end
 end
 
@@ -66,9 +116,16 @@ function callback_mqtt_connected(client)
 	print("broker connected")
 	mqtt_client = client
 	
+	-- Push an online message to the status channel
+	-- Note that data is potentially invalid at this time!
+	output_json_status(0,"online")
+	
 	-- This causes the main loop alarm to be configured
 	print("started main loop")
 	tmr.alarm(0,check_interval*1000,tmr.ALARM_AUTO,callback_timer)
+	
+	-- And fire once immediately
+	callback_timer()
 end
 
 -- Callback triggered when connection to MQTT server fails
@@ -89,7 +146,7 @@ function callback_mqtt_offline(client)
 		mqtt_client:close()
 		mqtt_client = nil
 	else
-		print("asset: mqtt_client not populated")
+		print("assert: mqtt_client not populated")
 	end
 	
 	-- Try and reconnect
@@ -103,15 +160,14 @@ function connect_mqtt(ip)
 	-- Connect up to the mqtt broker
 	m = mqtt.Client(mqtt_clientname, 120, "", "")
 
-	-- Register a Last Will and Testament
-	m:lwt(mqtt_topic, '{"type":"lwt","status":"offline","clientid":"' .. mqtt_clientname .. '"}', 0, 0)
+	-- Register the LWT for this sensor
+	m:lwt(mqtt_topic .. "/status/" .. mqtt_clientname, '{"valid":0,"status":"offline","clientid":"' .. mqtt_clientname .. '"}', 0, 1)
 
-	-- Connect some callbacks to display status (for now!)
-	m:on("connect", function(client) print ("mqtt broker connected") end)
+	-- Set up a callback to handle the broker going offline
 	m:on("offline", callback_mqtt_offline)
 
 	-- And now connect to the broker
-	m:connect(ip, 1883, 0, callback_mqtt_connected, callback_mqtt_failed)                                   
+	m:connect(ip, 1883, 0, callback_mqtt_connected, callback_mqtt_failed)
 end
 
 -- Callback triggered when DNS resolution for the MQTT servername is successful
