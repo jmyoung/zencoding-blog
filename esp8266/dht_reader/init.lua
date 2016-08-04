@@ -1,7 +1,7 @@
 -- Delay 10 seconds on startup, then start executing code
 function startup()
 	print('executing script')
-	dofile('dht_reader.lua')
+	dofile('dht_reader_logstash.lua')
 end
 
 -- 	NOTE - You have 10 seconds to delete this file or stop the timer with;
