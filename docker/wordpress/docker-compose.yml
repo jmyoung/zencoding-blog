@@ -1,0 +1,54 @@
+version: '2'
+
+services:
+
+  # The database engine
+  mysql:
+    image: mysql:latest
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: putyourgoodpasswordhere
+    volumes:
+      - ./data/mysql:/var/lib/mysql:rw,Z
+
+  # The actual Wordpress instance
+  wordpress:
+    image: wordpress:fpm
+    restart: unless-stopped
+    environment:
+      WORDPRESS_DB_PASSWORD: putyourgoodpasswordhere
+    volumes:
+      - ./data/wordpress:/var/www/html:rw,Z
+    depends_on:
+      - mysql
+
+  # LetsEncrypt generates SSL certificates for use by NGINX
+  # You need to periodically restart NGINX to get the latest cert
+  letsencrypt:
+    image: quay.io/letsencrypt/letsencrypt:latest
+    restart: unless-stopped
+    command:  bash -c "sleep 6; while true; do certbot certonly --standalone -d yourdomainhere.local --text --agree-tos --email youremail@yourdomainhere.local --server https://acme-v01.api.letsencrypt.org/directory --rsa-key-size 4096 --verbose --renew-by-default --standalone-supported-challenges http-01; sleep 86400; done"
+    entrypoint: ""
+    volumes:
+      - ./data/letsencrypt:/etc/letsencrypt:rw,Z
+    environment:
+      - TERM=xterm
+
+  # NGINX mounts the wordpress containers for file verification, not execution
+  # Execution is via fastcgi inside the wordpress container
+  nginx:
+    image: nginx:latest
+    restart: unless-stopped
+    volumes:
+      - ./nginx/config:/etc/nginx/conf.d:ro,Z
+      - ./data/nginx:/usr/share/nginx/html:ro,Z
+    volumes_from:
+      - wordpress
+      - letsencrypt
+    ports:
+      - 80:80
+      - 443:443
+    links:
+      - letsencrypt
+    depends_on:
+      - wordpress
