@@ -29,7 +29,8 @@ Updating the containers
 
 Wordpress will update automatically, but you can update the container (which also updates PHP FPM) and the other parts with;
 
-```docker pull wordpress:fpm
+```
+docker pull wordpress:fpm
 docker pull nginx:latest
 docker pull mysql:latest
 docker pull quay.io/letsencrypt/letsencrypt:latest
@@ -44,6 +45,8 @@ Backing up Wordpress
 
 I'd suggest you run the backup external to the containers, in case the containers get compromised.  You can do something like this;
 
-```docker exec -i wordpress_mysql_1 mysqldump -u root -pyourdatabasepassword --all-databases 2>/dev/null | gzip -c > database-backup.sql.gz```
+```
+docker exec -i wordpress_mysql_1 mysqldump -u root -pyourdatabasepassword --all-databases 2>/dev/null | gzip -c > database-backup.sql.gz
+```
 
 You can then safely just tarball up the Wordpress and nginx data directories as well to go with them.
