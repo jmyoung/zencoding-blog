@@ -1,5 +1,5 @@
 -- Uses an ESP8266 board with NodeMCU and a DHT11/22 sensor in order to
--- read temperature/humidity data and publish it a Logstash server as JSON
+-- read temperature/humidity data and publish it as a JSON message
 --
 -- Written by James Young <jyoung@zencoffee.org> April 2016
 --
@@ -7,15 +7,15 @@
 
 -- Configure stuff here
 dht_gpio = 4									-- GPIO pin that the sensor is attached to
-logstash_hostname = "elkstack.zencoffee.org"	-- Hostname for the Logstash server
-logstash_port = 5000							-- TCP port to connect to
-logstash_location = "lounge"					-- Where this device is located
-logstash_type = "sensor_data"					-- Content of 'type' field in output JSON
+json_hostname = "splunk.zencoffee.org"  	    -- Hostname for the json server
+json_port = 5000							    -- TCP port to connect to
+json_location = "lounge"					    -- Where this device is located
+json_type = "sensor_data"					    -- Content of 'type' field in output JSON
 check_interval = 20								-- Number of seconds between checks
 
 -- Don't mess with this
-logstash_ip = nil								-- IP address for the Logstash server
-logstash_message = nil									-- The message we're going to send
+json_ip = nil        								-- IP address for the json server
+json_message = nil									-- The message we're going to send
 
 -- Generate the sensor status as a table
 function get_sensor_table(gpio)
@@ -38,23 +38,23 @@ function callback_timer()
 	ok, data = pcall(get_sensor_table, dht_gpio)
 	if ok then
 		output = {}
-		output["type"] = logstash_type
+		output["type"] = json_type
 		output["temperature"] = data["temperature"]
 		output["relhumidity"] = data["relhumidity"]
 		output["deviceid"] = wifi.sta.getmac()
-		output["location"] = logstash_location
+		output["location"] = json_location
 		
 		ok, json = pcall(cjson.encode, output)
 		if ok then		
 			-- Start pushing messages for the sensors we've detected
-			print("connecting to logstash")
-			logstash_message = json
+			print("connecting to json")
+			json_message = json
 			sock = net.createConnection(net.TCP, 0)
 			sock:on("receive", function(sck, c) print(c) end)
-			sock:connect(logstash_port, logstash_ip)
+			sock:connect(json_port, json_ip)
 			sock:on("connection", function (sck, c)
 				print("outputting message")
-				sck:send(logstash_message .. "\n")
+				sck:send(json_message .. "\n")
 				sck:close()
 				
 				-- Everything is ok, so re-arm the watchdog
@@ -66,14 +66,14 @@ function callback_timer()
 	end
 end
 
--- Callback triggered when DNS resolution for the Logstash servername is successful
-function process_logstash_ip(socket, ip)
-	logstash_ip = ip
+-- Callback triggered when DNS resolution for the json servername is successful
+function process_json_ip(socket, ip)
+	json_ip = ip
 	if (ip == nil) then 
-		print("logstash dns resolve error")
+		print("json dns resolve error")
 	else
 		-- We have an IP address
-		print("logstash broker at " .. ip)
+		print("json broker at " .. ip)
 		
 		-- This causes the main loop alarm to be configured
 		print("started main loop")
@@ -96,6 +96,6 @@ end
 -- Arm the software watchdog
 tmr.softwd(check_interval*3)
 
--- Resolve the MQTT broker IP, rest of code is callbacks in this
-net.dns.resolve(logstash_hostname, process_logstash_ip)
+-- Resolve the JSON server IP, rest of code is callbacks in this
+net.dns.resolve(json_hostname, process_json_ip)
 

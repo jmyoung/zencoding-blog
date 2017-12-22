@@ -1,0 +1,47 @@
+title		AV8B Harrier
+JS_POV1_UP	Trim Up\n[Zoom In]
+JS_POV1_DOWN	Trim Down\n[Zoom Out]
+JS_POV1_LEFT	Trim Left\n[Trim Rudder]
+JS_POV1_RIGHT	Trim Right\n[Trim Rudder]
+JS_MMCB		Cage/Uncage\n[Master Arm]
+JS_PICKLE	A/G Pickle
+JS_TMS_UP	INS/IRMV/GAMV
+JS_TMS_DOWN	DMT/LST/TV\n[Scene Reject]
+JS_TMS_LEFT	MAP
+JS_TMS_RIGHT	FLIR
+JS_CMS_FORE	AIM-9 BORE
+JS_CMS_AFT	AIM-9 SEAM
+JS_CMS_LEFT	NAV\n[VSTOL]
+JS_CMS_RIGHT	A2G
+JS_CMS_PRESS	AA GUN
+JS_DMS_UP	TDC Up
+JS_DMS_DOWN	TDC Down\n[TDC Action]
+JS_DMS_LEFT	TDC Left\n[WP Increment]
+JS_DMS_RIGHT	TDC Right
+JS_TRIGGER1	Lock\n[Unlock]
+JS_TRIGGER2	Fire Gun/AA
+JS_NSB		NWS\n[Canopy]
+JS_LEVER	Lever
+JS_PITCH	Pitch
+JS_ROLL		Roll
+APUSTART	Start Engines
+SLIDER0		Nozzle
+LGSILENCE	[Eject]
+FLAPSUP		Flap Mode UP\n[Flap Power]
+FLAPSDOWN	Flap Mode DN\n[Flap Power]
+RDRALTM_NRM	Altimeter\nSelect
+AUTOPILOT	AFC Toggle
+AUTOPILOT_UP	Q-Feel
+AUTOPILOT_DOWN	Alt Hold
+POV2_UP		ECM Chaff\n[KB UP]
+POV2_DOWN	ECM Flares\n[KB DOWN]
+POV2_LEFT	ECM Jammer
+POV2_RIGHT	ECM All\n[KB On/Off]
+SLEW_PRESS	TrackIR Reset
+LEFTBUTTON	Flare Salvo
+PINKY_FWD	Ext Lights
+PINKY_AFT	Ext Lights
+BRAKE_FWD	Brakes ON\n[Park ON]
+BRAKE_AFT	Brakes OFF\n[Park OFF]
+CHINA_FWD	Water UP
+CHINA_AFT	Water DOWN
