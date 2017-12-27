@@ -27,8 +27,8 @@ JS_ROLL		Roll
 APUSTART	Start Engines
 SLIDER0		Nozzle
 LGSILENCE	[Eject]
-FLAPSUP		Flap Mode UP\n[Flap Power]
-FLAPSDOWN	Flap Mode DN\n[Flap Power]
+FLAPSUP		Flap CRUISE\n[Flap Power OFF]
+FLAPSDOWN	Flap VSTOL\n[Flap Power ON]
 RDRALTM_NRM	Altimeter\nSelect
 AUTOPILOT	AFC Toggle
 AUTOPILOT_UP	Q-Feel
@@ -41,7 +41,7 @@ SLEW_PRESS	TrackIR Reset
 LEFTBUTTON	Flare Salvo
 PINKY_FWD	Ext Lights
 PINKY_AFT	Ext Lights
-BRAKE_FWD	Brakes ON\n[Park ON]
-BRAKE_AFT	Brakes OFF\n[Park OFF]
-CHINA_FWD	Water UP
-CHINA_AFT	Water DOWN
+BRAKE_FWD	Brakes OFF\n[Park OFF]
+BRAKE_AFT	Brakes ON\n[Park ON]
+CHINA_FWD	Water TO
+CHINA_AFT	Water LDG
